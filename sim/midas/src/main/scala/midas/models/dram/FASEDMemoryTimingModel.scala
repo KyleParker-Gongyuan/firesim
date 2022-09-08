@@ -15,10 +15,10 @@ import junctions._
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.{ExtModule}
 
 import midas.core._
 import midas.widgets._
-import midas.passes.{Fame1ChiselAnnotation}
 
 import scala.math.min
 import Console.{UNDERLINED, RESET}
@@ -205,6 +205,16 @@ case class CompleteConfig(
   def typeHints(): Seq[Class[_]] = Seq(userProvided.getClass)
 }
 
+/**
+ * External module for a clock gate.
+ */
+class AbstractClockGate extends ExtModule {
+  val I = IO(Input(Clock()))
+  val CE = IO(Input(Bool()))
+  val O = IO(Output(Clock()))
+  override def desiredName = "AbstractClockGate"
+}
+
 class FASEDMemoryTimingModel(completeConfig: CompleteConfig, hostParams: Parameters) extends BridgeModule[HostPortIO[FASEDTargetIO]]()(hostParams)
     with UsesHostDRAM {
 
@@ -262,9 +272,6 @@ class FASEDMemoryTimingModel(completeConfig: CompleteConfig, hostParams: Paramet
     val toHostDRAM: AXI4Bundle = toHostDRAMNode.out.head._1
     val tNasti = hPort.hBits.axi4
     val tReset = hPort.hBits.reset
-
-    val model = cfg.elaborate()
-    printGenerationConfig
 
     // Debug: Put an optional bound on the number of memory requests we can make
     // to the host memory system
@@ -327,6 +334,14 @@ class FASEDMemoryTimingModel(completeConfig: CompleteConfig, hostParams: Paramet
                                       ingressReady, bReady, rReady, tResetReady)
 
     val targetFire = tFireHelper.fire
+
+    val gate = Module(new AbstractClockGate)
+    gate.I := clock
+    gate.CE := targetFire
+
+    val model = withClock(gate.O)(cfg.elaborate())
+    printGenerationConfig
+
     // HACK: Feeding valid back on ready and ready back on valid until we figure out
     // channel tokenization
     hPort.toHost.hReady := tFireHelper.fire
@@ -550,8 +565,6 @@ class FASEDMemoryTimingModel(completeConfig: CompleteConfig, hostParams: Paramet
     attach(brespError, "brespError", ReadOnly)
 
     genCRFile()
-    dontTouch(targetFire)
-    chisel3.experimental.annotate(Fame1ChiselAnnotation(model, "targetFire"))
 
     override def genHeader(base: BigInt, sb: StringBuilder) {
       def genCPPmap(mapName: String, map: Map[String, BigInt]): String = {
