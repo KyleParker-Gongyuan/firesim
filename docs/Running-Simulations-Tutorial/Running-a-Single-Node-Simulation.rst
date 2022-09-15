@@ -457,7 +457,7 @@ useful for running benchmarks automatically. The
 :ref:`defining-custom-workloads` section describes this process in detail.
 
 For now, let's wrap-up our tutorial by terminating the ``f1.2xlarge`` instance
-that we launched. To do so, run:
+that we launched. To do so, run: (**from your manager instance NOT the simulation**)
 
 ::
 
