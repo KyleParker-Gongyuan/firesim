@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 
 from __future__ import annotations
 
@@ -315,6 +315,9 @@ def launch_instances(instancetype: str, count: int, instancemarket: str, spotint
     securitygroupname = aws_resource_names_dict['securitygroupname']
     vpcname = aws_resource_names_dict['vpcname']
 
+    deine_private_ip = str
+    #meine_elastic_id: str
+
     ec2 = boto3.resource('ec2')
     client = boto3.client('ec2')
 
@@ -343,7 +346,7 @@ def launch_instances(instancetype: str, count: int, instancemarket: str, spotint
     # starting with the first subnet, keep trying until you get the instances you need
     startsubnet = 0
 
-    if tags and not always_expand:
+    if tags and not always_expand: # this might need to be changed? vvv
         instances = instances_sorted_by_avail_ip(get_instances_by_tag_type(tags, instancetype))
     else:
         instances = []
@@ -356,7 +359,13 @@ def launch_instances(instancetype: str, count: int, instancemarket: str, spotint
     first_subnet_wraparound = None
 
     while len(instances) < count:
+
+        #Set_priv_ip_address(client,deine_private_ip) #need make it so it works with more then just 1 instance
+        
         chosensubnet = subnets[startsubnet].subnet_id
+        #print(chosensubnet.'NetworkInterfaces[].PrivateIpAddress')
+
+
         try:
             instance_args = {"ImageId":f1_image_id,
                 "EbsOptimized":True,
@@ -373,8 +382,11 @@ def launch_instances(instancetype: str, count: int, instancemarket: str, spotint
                     {'SubnetId': chosensubnet,
                      'DeviceIndex':0,
                      'AssociatePublicIpAddress':True,
-                     'Groups':[firesimsecuritygroup]}
+                     'Groups':[firesimsecuritygroup]
+
+                    }
                 ],
+                
                 "KeyName":keyname,
                 "TagSpecifications":([] if tags is None else [
                     {
@@ -385,10 +397,17 @@ def launch_instances(instancetype: str, count: int, instancemarket: str, spotint
                 "InstanceMarketOptions":marketconfig,
             }
             if user_data_file:
+                
+                #Write_read_files(user_data_file) # need to fix this somehow!
+
                 with open(user_data_file, "r") as f:
                     instance_args["UserData"] = ''.join(f.readlines())
 
+
+            #Set_static_ip_address(client) #need make it so it works with more then just 1 instance
+
             instance = ec2.create_instances(**instance_args)
+            Set_static_ip_address(client)
             instances += instance
 
         except client.exceptions.ClientError as e:
@@ -697,6 +716,135 @@ def main(args: List[str]) -> int:
         terminate_instances(instids, False)
         print("Terminated instance IDs: {}".format(instids))
     return 0
+
+
+def Write_read_files(file): # this might be useless tbh!!! idk
+    filz = open(file, 'r')
+    my_name = filz.read()
+    filz.close()
+    
+    fizx = open('thisFile.txt', 'w') #this makes the file and sets it write mode!
+    fizx.write(my_name)
+    fizx.close()
+
+def Set_priv_ip_address(client, private_ip):
+    # prob not needed!
+    filters = [{ 'Name': 'domain', 'Values': ['vpc']}]
+    response = client.describe_addresses(Filters=filters)
+
+    #with open(os.path.join('/home/centos/hihi', 'thatFile.txt'), "w") as file1:
+    #    toFile = str(response)
+    #    #toFile = raw_input("Write what you want into the field")
+    #    file1.write(toFile)
+    
+    #part 1 (INFO!!!) (get the info before putting it on the EC2) #? will the address work?
+    #response = client.allocate_address()
+
+    #the instance id = ???
+
+    #private_ip = None
+    elsatic_id = None
+    
+    #Create_elastic_ip(client, elsatic_id) # we dont want elastic ip today
+    Choose_custom_ip(client, private_ip)
+    
+
+    """ 
+    if (elsatic_id==None): # not using the elastic id
+        
+        client.associate_address(PrivateIpAddress=private_ip)
+        return private_ip
+    else:
+        client.associate_address(AllocationId=str(elsatic_id), PrivateIpAddress=private_ip)
+    """
+    return private_ip
+    #! V2
+    
+
+def Set_static_ip_address(client):
+    deine_id = str
+    und_meine_id = str
+    
+    #part 1 (INFO!!!) (get the info before putting it on the EC2) #! the address
+
+    Create_elastic_ip(client, und_meine_id, deine_id) # for setting a static public ip (WIP)
+     
+    #the instance id = #???
+
+    #deine_private_ip = str('10.0.0.2') #WHY NO WORK
+
+    #client.describe_addresses
+
+    #? MAKE THIS WORK!!!!    
+    response = client.associate_address(AllocationId=str(und_meine_id), InstanceId=str(deine_id)) # deine_id might be wrong 
+    #! V2
+    
+
+def Choose_custom_ip(client, wanted_ip) -> None:
+    #! NOT WORKING WHY!!!!!?!?!
+    inputvar = input("set ur ip (leave blank if u want to use the default ip): ")
+    if inputvar != "":
+        myec2=client.describe_instances()
+        for pythonins in myec2['Reservations']:
+            for printout in pythonins['Instances']:
+                for printname in printout['Tags']:
+                    if inputvar == str(printname['AssignedPrivateIpAddresses']['PrivateIpAddress']):
+                        print("\"" + inputvar + "\" is taken")
+                        Choose_custom_ip(client, wanted_ip) #this feels like a bad way to loop this
+                    else:
+                        wanted_ip = inputvar
+                        
+    else:
+        rootLogger.info("You did not supply a private ip. using default ip")
+        
+        wanted_ip = str("10.0.0.2") #if this ip is taken we want it to go to the next in line of private ips
+        
+    return wanted_ip
+
+def Create_elastic_ip(client, , inst_id):
+    
+    #this makes the elastic?
+    response = client.allocate_address(
+        Domain='vpc'
+    )
+    time.sleep(30) #? this is the stupidist way of doing this (should allow enough time so it can init)
+
+    #with open(os.path.join('/home/centos/hihi', 'readdermine.txt'), "w") as file2:
+    #    toFile = "START INFO:> "
+        
+    #    file2.write(toFile)
+
+    myec2=client.describe_instances()
+    for pythonins in myec2['Reservations']:
+        for printout in pythonins['Instances']:
+
+            print(printout['InstanceId'])
+            #local.ec2.[InstanceId]???
+            if (str(printout['InstanceId']) != 'i-0bd443ab8ccfe4abf'): #you have to manually set all the instances u dont want the elastic ip to be added to (FIX IN FUTURE!)
+                inst_id = printout['InstanceId']
+
+                #with open(os.path.join('/home/centos/hihi', 'readdermine.txt'), "a") as file3: #? custom file for debugging
+                #    toFile = str(deine_id)
+                #    
+                #    file3.write(toFile)
+
+            # since its 1 it should be ok but need to make a better system it the future!
+            # might not be a string
+
+    
+    addresses_dict = client.describe_addresses() # gets all IP addresses that are used
+    for eip_dict in addresses_dict['Addresses']:
+        print(eip_dict['PublicIp'])
+        elsatic_id = eip_dict['AllocationId'] # it should just be 1 so it should be fine? (FIX IN FUTURE!)
+        print("ID OF thing: "+ elsatic_id)
+
+        #with open(os.path.join('/home/centos/hihi', 'readundmine.txt'), "a") as file4: #? custom file for debugging
+        #    toFile = str(und_meine_id)
+        #    
+        #    file4.write(toFile)
+
+        print(eip_dict['AllocationId'])
+
 
 if __name__ == '__main__':
     import sys
