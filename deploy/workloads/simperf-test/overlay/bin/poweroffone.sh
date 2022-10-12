@@ -7,7 +7,7 @@ echo "poweroff"
 HNAME=$(ifconfig eth0 | awk '/inet addr/{print substr($2,6)}')
 echo $HNAME
 
-if [ "$HNAME" == "172.16.0.2" ]; then
+if [ "$HNAME" == "100.0.0.2" ]; then
     echo "this node is powering off."
     poweroff -f
 else
